@@ -3,7 +3,7 @@ import sys, random
 from collections import Counter
 import math
 from corus import load_ods_rt
-
+'''
 path = 'rt.csv.gz'
 records = load_ods_rt(path)
 #a = next(records)
@@ -14,23 +14,23 @@ raw_text = ""
 for txt in records:
     raw_text += " " + txt.text
     print(txt.text)
-
+'''
 np.random.seed(1)
 random.seed(1)
-'''
+
 f = open('reviews.txt')
 raw_reviews = f.readlines()
 f.close()
-print(raw_reviews)
-'''
-tokens = list(map(lambda x: set(x.split(" ")), raw_text))
+#print(raw_reviews)
+
+tokens = list(map(lambda x: set(x.split(" ")), raw_reviews))
 
 wordcnt = Counter()
 for sent in tokens:
     for word in sent:
         wordcnt[word] -= 1
 vocab = list(set(map(lambda x:x[0],wordcnt.most_common())))
-
+print(len(vocab))
 word2index = {}
 for i, word in enumerate(vocab):
     word2index[word] = i
@@ -47,7 +47,7 @@ for sent in tokens:
             ""
     input_dataset.append(list(set(sent_indices)))
 concatenated = np.array(concatenated)
-
+print(concatenated)
 random.shuffle(input_dataset)
 
 target_dataset = list()
@@ -90,20 +90,26 @@ layer_2_target[0] = 1
 
 correct = 0
 total = 0
-
+print('----------------------------')
 for rev_i, review in enumerate(input_dataset * iterations):
     for target_i in range(len(review)):
+        #print(target_i)
+        #print(review)
+        #print(review[target_i])
         target_samples = [review[target_i]] + list(concatenated[(np.random.rand(negative)*len(concatenated)).astype('int').tolist()])
-
+        #print(target_samples)
         left_context = review[max(0, target_i - window):target_i]
-        right_context = review[target_i+1:min(len(review), target_i + window)]
-
+        right_context = review[target_i+1:min(len(review), target_i + window+1)]
+        #print(right_context)
+        #print(left_context)
         layer_1 = np.mean(weights_0_1[left_context+right_context], axis=0)
         layer_2 = sigmoid(layer_1.dot(weights_1_2[target_samples].T))
-
+        print(layer_2)
+        print(layer_2_target)
         layer_2_delta = layer_2 - layer_2_target
+        print(layer_2_delta)
         layer_1_delta = layer_2_delta.dot(weights_1_2[target_samples])
-
+        print('-----------------------')
         weights_0_1[left_context+right_context] -= alpha * layer_1_delta
         weights_1_2[target_samples] -= np.outer(layer_2_delta, layer_1) * alpha
     if (rev_i % 250 == 0):
