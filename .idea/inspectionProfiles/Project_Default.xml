@@ -1,0 +1,21 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="ExcelToGoogle.main.spreadsheetgoogle" />
+          <option value="ExcelToGoogle.main.exellib" />
+          <option value="apiclient.discovery" />
+          <option value="ExcelToGoogle.main.el" />
+          <option value="ExcelToGoogle.main.Spreadsheet" />
+          <option value="ExcelToGoogle.FullTranslation.el" />
+          <option value="ExcelToGoogle.FullTranslation.spreadsheetgoogle" />
+          <option value="ExcelToGoogle.FullTranslation.exellib" />
+          <option value="ExcelToGoogle.FullTranslation.Spreadsheet" />
+          <option value="property.__mul__" />
+        </list>
+      </option>
+    </inspection_tool>
+  </profile>
+</component>
