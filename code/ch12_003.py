@@ -71,7 +71,7 @@ def predict(sent):
     return layers, loss
 
 
-for iter in range(30000):
+for iter in range(50000):
     sent = words2indices(tokens[iter % len(tokens)][1:])
     layers, loss = predict(sent)
 
