@@ -3,18 +3,54 @@ import numpy as np
 
 class Tensor(object):
 
-    def __init__(self, data, creators=None, creation_op=None):
+    def __init__(self,
+                 data,
+                 autograd=False,
+                 creators=None,
+                 creation_op=None,
+                 id=None):
         self.data = np.array(data)
         self.creators = creators
         self.creation_op = creation_op
         self.grad = None
+        self.autograd = autograd
+        self.children = {}
+        if id is None:
+            id = np.random.randint(0,1000000000)
+        self.id = id
+        if(creators is not None):
+            for c in creators:
+                if(self.id not in c.children):
+                    c.children[self.id] = 1
+                else:
+                    c.children[self.id] += 1
 
-    def backward(self, grad):
-        self.grad = grad
+    def all_children_grads_accounted_for(self):
+        for id, cnt in self.children.items():
+            if(cnt != 0):
+                return False
+        return True
 
-        if (self.creation_op == "add"):
-            self.creators[0].backward(grad)
-            self.creators[1].backward(grad)
+    def backward(self, grad=None, grad_origin=None):
+        if(self.autograd):
+            if(grad_origin is not None):
+                if(self.children[grad_origin.id] == 0):
+                    raise Exception("sorry, can't backprop than once")
+                else:
+                    self.children[grad_origin.id] -= 1
+            if(self.grad is None):
+                self.grad = grad
+            else:
+                self.grad += grad
+
+            assert  grad.autograd == False
+
+            if(self.creators is not None and
+                    (self.all_children_grads_accounted_for() or
+                    grad_origin is None)):
+                if(self.creation_op == 'add'):
+                    self.creators[0].backward(self.grad, self)
+                    self.creators[1].backward(self.grad, self)
 
     def __add__(self, other):
         print(self)
