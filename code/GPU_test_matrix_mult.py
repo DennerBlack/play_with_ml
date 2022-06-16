@@ -1,41 +1,149 @@
-from numba import cuda
+from numba import cuda, float32, int32
 import numpy as np
 import time
+import math
+
 np.random.seed(1)
 '''
 a = np.random.randint(15, (100, 100))
 b = np.random.randint(15, (100, 100))
 c = np.zeros((100, 100))
 '''
-n = 200000000
-a = np.random.randint(15, size=n)
-b = np.random.randint(15, size=n)
-c = np.zeros(n)
+n = 100
+m = 1
+a = np.random.random(size=(1, 15)).astype("float32")
+b = np.random.random(size=(15, 5)).astype("float32")
+c = np.zeros((1, 1)).astype("float32")
 start_time = time.time()
-for i in range(n):
-    c[i] = a[i] + b[i]
+
+c = a.dot(b)
+
 print("--- %s seconds ---" % (time.time() - start_time))
 print(c)
+print(c.dtype)
 
-@cuda.jit('void(float32[:], float32[:], float32[:])')
-def cuda_addition(a,b,c):
-    i = cuda.blockIdx.x * cuda.blockDim.x + cuda.threadIdx.x
-    if i > c.size:
-        return
-    c[i] = a[i] + b[i]
+dtype = a.dtype
+
+c = np.zeros((1, 5)).astype("float32")
+
+
+@cuda.jit('void(float32[:,:], float32[:,:], float32[:,:])')
+def cuda_matmul(A, B, C):
+    t = 8
+    #TPB = int32(tr_per_block)
+    sA = cuda.shared.array(shape=(t, t), dtype=float32)
+    sB = cuda.shared.array(shape=(t, t), dtype=float32)
+
+    x, y = cuda.grid(2)
+
+    tx = cuda.threadIdx.x
+    ty = cuda.threadIdx.y
+    bpg = cuda.gridDim.y
+
+    tmp = float32(0.)
+
+    for i in range(bpg):
+        sA[tx, ty] = 0
+        sB[tx, ty] = 0
+        if x < A.shape[0] or (ty + i * t) < A.shape[1]:
+            sA[tx, ty] = A[x, ty + i * t]
+        if y < B.shape[1] or (tx + i * t) < B.shape[0]:
+            sB[tx, ty] = B[tx + i * t, y]
+
+        cuda.syncthreads()
+
+        for j in range(t):
+            tmp += sA[tx, j] * sB[j, ty]
+
+        cuda.syncthreads()
+
+    if x < C.shape[0] or y < C.shape[1]:
+        C[x, y] = tmp
 
 
 device = cuda.get_current_device()
 start_time = time.time()
 d_a = cuda.to_device(a)
 d_b = cuda.to_device(b)
-d_c = cuda.device_array_like(a)
+d_c = cuda.device_array_like(c)
 
-tpb = device.WARP_SIZE
-bpg = int(np.ceil(n/tpb))
+# threads_per_block = int(np.sqrt(device.WARP_SIZE))
+print(device.WARP_SIZE)
+threads_per_block = int((device.WARP_SIZE) / 4)
+print(type(threads_per_block))
+tpb = (threads_per_block, threads_per_block)
+block_per_grid_x = int(np.ceil(c.shape[0] / tpb[0]))
+block_per_grid_y = int(np.ceil(c.shape[1] / tpb[1]))
+BPG = (block_per_grid_x, block_per_grid_y)
 
-cuda_addition[bpg, tpb](d_a, d_b, d_c)
+start_time1 = time.time()
 
+cuda_matmul[BPG, tpb](d_a, d_b, d_c)
+print("--- %s seconds ---" % (time.time() - start_time1))
 c = d_c.copy_to_host()
 print("--- %s seconds ---" % (time.time() - start_time))
 print(c)
+'''
+@cuda.jit
+def fast_matmul(A, B, C):
+    # Define an array in the shared memory
+    # The size and type of the arrays must be known at compile time
+    sA = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
+    sB = cuda.shared.array(shape=(TPB, TPB), dtype=float32)
+
+    x, y = cuda.grid(2)
+
+    tx = cuda.threadIdx.x
+    ty = cuda.threadIdx.y
+    bpg = cuda.gridDim.x    # blocks per grid
+
+    # Each thread computes one element in the result matrix.
+    # The dot product is chunked into dot products of TPB-long vectors.
+    tmp = float32(0.)
+    for i in range(bpg):
+        # Preload data into shared memory
+        sA[tx, ty] = 0
+        sB[tx, ty] = 0
+        if x < A.shape[0] and (ty+i*TPB) < A.shape[1]:
+          sA[tx, ty] = A[x, ty + i * TPB]
+        if y < B.shape[1] and (tx+i*TPB) < B.shape[0]:
+          sB[tx, ty] = B[tx + i * TPB, y]
+
+        # Wait until all threads finish preloading
+        cuda.syncthreads()
+
+        # Computes partial product on the shared memory
+        for j in range(TPB):
+            tmp += sA[tx, j] * sB[j, ty]
+
+        # Wait until all threads finish computing
+        cuda.syncthreads()
+    if x < C.shape[0] and y < C.shape[1]:
+        C[x, y] = tmp
+
+
+
+#%%
+
+x_h = a
+y_h = b
+z_h = c
+
+x_d = cuda.to_device(x_h)
+y_d = cuda.to_device(y_h)
+z_d = cuda.to_device(z_h)
+
+TPB = 32
+threadsperblock = (TPB, TPB)
+blockspergrid_x = math.ceil(z_h.shape[0] / threadsperblock[0])
+blockspergrid_y = math.ceil(z_h.shape[1] / threadsperblock[1])
+blockspergrid = (blockspergrid_x, blockspergrid_y)
+
+fast_matmul[blockspergrid, threadsperblock](x_d, y_d, z_d)
+z_h = z_d.copy_to_host()
+print(z_h)
+print(x_h@y_h)
+'''
+
+
+

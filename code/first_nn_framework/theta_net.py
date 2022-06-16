@@ -1,5 +1,5 @@
 import numpy as np
-
+import math
 
 class Tensor(object):
 
