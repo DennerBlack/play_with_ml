@@ -2,9 +2,9 @@ import sys, math, random
 from collections import Counter
 import numpy as np
 
-from first_nn_framework.theta_net import Tensor
+#from first_nn_framework.theta_net import Tensor
 
-print(Tensor())
+#print(Tensor())
 
 np.random.seed(1)
 
