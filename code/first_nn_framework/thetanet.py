@@ -100,6 +100,14 @@ class Tensor(object):
                 if (self.creation_op == "relu"):
                     self.creators[0].backward(self.grad * (self.data > 0))
 
+                if (self.creation_op == "index_select"):
+                    new_grad = np.zeros_like(self.creators[0].data)
+                    indices_ = self.index_select_indices.data.flatten()
+                    grad_ = grad.data.reshape(len(indices_), -1)
+                    for i in range(len(indices_)):
+                        new_grad[indices_[i]] += grad_[i]
+                    self.creators[0].backward(Tensor(new_grad))
+
     def __add__(self, other):
         if (self.autograd and other.autograd):
             return Tensor(self.data + other.data,
@@ -193,13 +201,16 @@ class Tensor(object):
                           creation_op="relu")
         return Tensor((self.data > 0) * self.data)
 
-    def softmax(self):
+    def index_select(self, indices):
+
         if (self.autograd):
-            return Tensor(np.exp(self.data)/np.sum(np.exp(self.data), axis=1, keepdims=True),
-                          autograd=True,
-                          creators=[self],
-                          creation_op="softmax")
-        return Tensor(np.exp(self.data)/np.sum(np.exp(self.data), axis=1, keepdims=True))
+            new = Tensor(self.data[indices.data],
+                         autograd=True,
+                         creators=[self],
+                         creation_op="index_select")
+            new.index_select_indices = indices
+            return new
+        return Tensor(self.data[indices.data])
 
     def __repr__(self):
         return str(self.data.__repr__())
@@ -293,6 +304,7 @@ class Sigmoid(Layer):
     def forward(self, input):
         return input.sigmoid()
 
+
 class Relu(Layer):
     def __init__(self):
         super().__init__()
@@ -301,12 +313,25 @@ class Relu(Layer):
         return input.relu()
 
 
-class Softmax(Layer):
-    def __init__(self):
+class Embedding(Layer):
+
+    def __init__(self, vocab_size, dim):
         super().__init__()
 
+        self.vocab_size = vocab_size
+        self.dim = dim
+
+        self.weight = Tensor((np.random.rand(vocab_size, dim) - 0.5) / dim, autograd=True)
+
+        self.parameters.append(self.weight)
+
     def forward(self, input):
-        return input.softmax()
+        return self.weight.index_select(input)
+
+
+
+
+
 
 
 '''
