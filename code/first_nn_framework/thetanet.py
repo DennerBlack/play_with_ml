@@ -223,7 +223,12 @@ class Sequential(Layer):
             params += l.get_parameters()
         return params
 
+class MSELoss(Layer):
+    def __init__(self):
+        super().__init__()
 
+    def forward(self, pred, target):
+        return ((pred - target) * (pred - target)).sum(0)
 '''
 a = Tensor([1, 2, 3, 4, 5], autograd=True)
 b = Tensor([2, 2, 2, 2, 2], autograd=True)
