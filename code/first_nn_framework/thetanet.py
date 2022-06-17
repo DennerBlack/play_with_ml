@@ -33,6 +33,9 @@ class Tensor(object):
 
     def backward(self, grad=None, grad_origin=None):
         if (self.autograd):
+            if (grad is None):
+                grad = Tensor(np.ones_like(self.data))
+
             if (grad_origin is not None):
                 if (self.children[grad_origin.id] == 0):
                     raise Exception("sorry, can't backprop than once")
@@ -85,6 +88,17 @@ class Tensor(object):
                 if ("expand" in self.creation_op):
                     dim = int(self.creation_op.split("_")[1])
                     self.creators[0].backward(self.grad.sum(dim))
+
+                if (self.creation_op == "sigmoid"):
+                    ones = Tensor(np.ones_like(self.grad.data))
+                    self.creators[0].backward(self.grad * (self * (ones - self)))
+
+                if (self.creation_op == "tanh"):
+                    ones = Tensor(np.ones_like(self.grad.data))
+                    self.creators[0].backward(self.grad * (ones - (self * self)))
+
+                if (self.creation_op == "relu"):
+                    self.creators[0].backward(self.grad * (self.data > 0))
 
     def __add__(self, other):
         if (self.autograd and other.autograd):
@@ -155,6 +169,38 @@ class Tensor(object):
                           creation_op="mm")
         return Tensor(self.data.dot(x.data))
 
+    def sigmoid(self):
+        if(self.autograd):
+            return Tensor(1 / (1 + np.exp(-self.data)),
+                          autograd=True,
+                          creators=[self],
+                          creation_op="sigmoid")
+        return Tensor(1 / (1 + np.exp(-self.data)))
+
+    def tanh(self):
+        if(self.autograd):
+            return Tensor(np.tanh(self.data),
+                          autograd=True,
+                          creators=[self],
+                          creation_op="tanh")
+        return Tensor(np.tanh(self.data))
+
+    def relu(self):
+        if (self.autograd):
+            return Tensor((self.data > 0) * self.data,
+                          autograd=True,
+                          creators=[self],
+                          creation_op="relu")
+        return Tensor((self.data > 0) * self.data)
+
+    def softmax(self):
+        if (self.autograd):
+            return Tensor(np.exp(self.data)/np.sum(np.exp(self.data), axis=1, keepdims=True),
+                          autograd=True,
+                          creators=[self],
+                          creation_op="softmax")
+        return Tensor(np.exp(self.data)/np.sum(np.exp(self.data), axis=1, keepdims=True))
+
     def __repr__(self):
         return str(self.data.__repr__())
 
@@ -192,7 +238,7 @@ class Linear(Layer):
 
     def __init__(self, n_inputs, n_outputs):
         super().__init__()
-        W = np.random.rand(n_inputs, n_outputs) * np.sqrt(2 / n_inputs)
+        W = np.random.rand(n_inputs, n_outputs) * np.sqrt(2.0 / (n_inputs))
         self.weight = Tensor(W, autograd=True)
         self.bias = Tensor(np.zeros(n_outputs), autograd=True)
 
@@ -200,7 +246,7 @@ class Linear(Layer):
         self.parameters.append(self.bias)
 
     def forward(self, input):
-        return input.mm(self.weight) * self.bias.expand(0, len(input.data))
+        return input.mm(self.weight) + self.bias.expand(0, len(input.data))
 
 
 class Sequential(Layer):
@@ -223,12 +269,46 @@ class Sequential(Layer):
             params += l.get_parameters()
         return params
 
+
 class MSELoss(Layer):
     def __init__(self):
         super().__init__()
 
     def forward(self, pred, target):
         return ((pred - target) * (pred - target)).sum(0)
+
+
+class Tanh(Layer):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return input.tanh()
+
+
+class Sigmoid(Layer):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return input.sigmoid()
+
+class Relu(Layer):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return input.relu()
+
+
+class Softmax(Layer):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input):
+        return input.softmax()
+
+
 '''
 a = Tensor([1, 2, 3, 4, 5], autograd=True)
 b = Tensor([2, 2, 2, 2, 2], autograd=True)
