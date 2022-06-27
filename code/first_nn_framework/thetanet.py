@@ -108,6 +108,10 @@ class Tensor(object):
                         new_grad[indices_[i]] += grad_[i]
                     self.creators[0].backward(Tensor(new_grad))
 
+                if (self.creation_op == "cross_entropy"):
+                    dx = self.softmax_output - self.target_dist
+                    self.creators[0].backward(Tensor(dx))
+
     def __add__(self, other):
         if (self.autograd and other.autograd):
             return Tensor(self.data + other.data,
@@ -211,6 +215,29 @@ class Tensor(object):
             new.index_select_indices = indices
             return new
         return Tensor(self.data[indices.data])
+
+    def cross_entropy(self, target_indices):
+
+        temp = np.exp(self.data)
+        softmax_output = temp / np.sum(temp,
+                                       axis=len(self.data.shape) - 1,
+                                       keepdims=True)
+
+        t = target_indices.data.flatten()
+        p = softmax_output.reshape(len(t), -1)
+        target_dist = np.eye(p.shape[1])[t]
+        loss = -(np.log(p) * (target_dist)).sum(1).mean()
+
+        if (self.autograd):
+            out = Tensor(loss,
+                         autograd=True,
+                         creators=[self],
+                         creation_op="cross_entropy")
+            out.softmax_output = softmax_output
+            out.target_dist = target_dist
+            return out
+
+        return Tensor(loss)
 
     def __repr__(self):
         return str(self.data.__repr__())
@@ -327,6 +354,48 @@ class Embedding(Layer):
 
     def forward(self, input):
         return self.weight.index_select(input)
+
+
+class CrossEntropyLoss(object):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input, target):
+        return input.cross_entropy(target)
+
+
+class RNNCell(Layer):
+    def __init__(self, n_inputs, n_hidden, n_output, activation='sigmoid'):
+        super().__init__()
+        self.n_inputs = n_inputs
+        self.n_hidden = n_hidden
+        self.n_output = n_output
+
+        if(activation == 'sigmoid'):
+            self.activation = Sigmoid()
+        elif(activation == 'tanh'):
+            self.activation = Tanh()
+        else:
+            raise Exception("Need non-linear function (tanh / sigmoid)")
+        self.w_ih = Linear(n_inputs, n_hidden)
+        self.w_hh = Linear(n_hidden, n_hidden)
+        self.w_ho = Linear(n_hidden, n_output)
+
+        self.parameters += self.w_ih.get_parameters()
+        self.parameters += self.w_hh.get_parameters()
+        self.parameters += self.w_ho.get_parameters()
+
+    def forward(self, input, hidden):
+        from_prev_hidden = self.w_hh.forward(hidden)
+        combined = self.w_ih.forward(input) + from_prev_hidden
+        new_hidden = self.activation.forward(combined)
+        output = self.w_ho.forward(new_hidden)
+        return output, new_hidden
+
+    def init_hidden(self, batch_size=1):
+        return Tensor(np.zeros((batch_size, self.n_hidden)), autograd=True)
+
 
 
 
