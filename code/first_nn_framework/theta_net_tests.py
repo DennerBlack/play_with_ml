@@ -52,7 +52,7 @@ criterion = CrossEntropyLoss()
 optim = SGD(parameters=model.get_parameters() + embed.get_parameters(), alpha=0.05)
 
 for iter in range(1000):
-    batch_size = 1000
+    batch_size = 100
     total_loss = 0
 
     hidden = model.init_hidden(batch_size=batch_size)
@@ -82,7 +82,7 @@ target = Tensor(data[0:batch_size,t+1], autograd=True)
 loss = criterion.forward(output, target)
 
 ctx = ""
-for idx in data[5:6][0][0:-1]:
+for idx in data[0:1][0][0:-1]:
     ctx += vocab[idx] + " "
 print("Context:",ctx)
 print("True:",vocab[target.data[0]])
