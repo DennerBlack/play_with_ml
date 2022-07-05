@@ -58,13 +58,8 @@ class Tensor(object):
             else:
                 self.grad += grad
 
-            # grads must not have grads of their own
             assert grad.autograd == False
 
-            # only continue backpropping if there's something to
-            # backprop into and if all gradients (from children)
-            # are accounted for override waiting for children if
-            # "backprop" was called on this variable directly
             if (self.creators is not None and
                     (self.all_children_grads_accounted_for() or
                      grad_origin is None)):
@@ -84,12 +79,12 @@ class Tensor(object):
                     self.creators[1].backward(new, self)
 
                 if (self.creation_op == "mm"):
-                    c0 = self.creators[0]
-                    c1 = self.creators[1]
-                    new = self.grad.mm(c1.transpose())
-                    c0.backward(new)
-                    new = self.grad.transpose().mm(c0).transpose()
-                    c1.backward(new)
+                    act = self.creators[0]
+                    weights = self.creators[1]
+                    new = self.grad.mm(weights.transpose())
+                    act.backward(new)
+                    new = self.grad.transpose().mm(act).transpose()
+                    weights.backward(new)
 
                 if (self.creation_op == "transpose"):
                     self.creators[0].backward(self.grad.transpose())

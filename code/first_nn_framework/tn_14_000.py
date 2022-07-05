@@ -4,10 +4,6 @@ from collections import Counter
 import numpy as np
 import codecs
 
-
-
-
-
 np.random.seed(0)
 
 f = codecs.open( "asimov_foundation_rus.txt", "r", "utf_8_sig" )
